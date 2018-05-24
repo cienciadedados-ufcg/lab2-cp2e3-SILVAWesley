@@ -1,0 +1,38 @@
+---
+title: "#Me Representa em 2016"
+output: 
+  html_document:
+    theme: cosmo
+---
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+```
+
+```{r}
+respostas = read_csv(here::here("data/respostas-merepresenta-2016.csv"), 
+                     col_types = cols(.default = col_character(), 
+                                      nota_partido = col_integer(), 
+                                      votos_recebidos = col_integer()))
+
+# A versão long (em vez de wide) dos dados facilita muito pro ggplot:
+respostas_long = 
+    respostas %>% 
+    gather(key = "tema", 
+           value = "resposta", 
+           10:23)
+
+```
+
+
+# Pergunta 1 - Os candidatos de partidos cristãos (PRB, PSC, PHS e PSDC) tendem a ser contra o estado laico?
+```{r}
+table_cristao = respostas %>% mutate(eh_cristao = sigla_partido %in% c("PRB", "PSC", "PHS", "PSDC"))
+
+table_cristao %>% 
+    group_by(eh_cristao) %>% 
+    summarize(proporcao_apoio = sum(`Estado Laico` == "S") / n())
+
+```
