@@ -1,15 +1,26 @@
 ---
-title: "#Me Representa em 2016"
-output: 
+title: "Me Representa em 2016"
+output:
+
   html_document:
+    df_print: paged
+    code_folding: hide
+    toc: yes
+    toc_float: yes
     theme: cosmo
 ---
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
 library(tidyverse)
 library(here)
+library("knitr")
+library("kableExtra")
+library("plotly")
+library("viridis")
 theme_set(theme_bw())
 ```
+
+# 1. Introdução
 
 ```{r}
 respostas = read_csv(here::here("data/respostas-merepresenta-2016.csv"), 
@@ -23,16 +34,108 @@ respostas_long =
     gather(key = "tema", 
            value = "resposta", 
            10:23)
+```
+Os dados sendo analisados neste documento foram retirados do 'Quem Me Representa?' em 2016. Na coleta de dados 890 candidatos de 244 cidades e 24 estados do Brasil se posicionaram a respeito dos seguintes temas:
+
+```{r}
+  kable(names(respostas)[10:23]) %>%
+  kable_styling(c("striped", "hover"))
 
 ```
 
+A partir dessa base de dados irei responder algumas perguntas que se encontram nas sessões a seguir.
 
 # Pergunta 1 - Os candidatos de partidos cristãos (PRB, PSC, PHS e PSDC) tendem a ser contra o estado laico?
-```{r}
-table_cristao = respostas %>% mutate(eh_cristao = sigla_partido %in% c("PRB", "PSC", "PHS", "PSDC"))
+É bastante comum que candidatos que fazem parte de partidos religiosos sejam radicais em ideias e tentem implantar no governo ideologias e dogmas daquela religião. Será que isso acontece com os partidos cristãos do Brasil? A nossa base de dados apresenta alguns dados que podem nos ajudar a responder essa questão.
 
-table_cristao %>% 
-    group_by(eh_cristao) %>% 
-    summarize(proporcao_apoio = sum(`Estado Laico` == "S") / n())
+Os partidos selecionados para esta análise foram o PRB (Partido Republicano Brasileiro), PSC (Partido Social Cristão), PHS (Partido Humanista da Solidariedade) e PSDC (Partido Social Democrata Cristão). Destes, o PSC e o PSDC são os mais radicais no critério do cristianismo.
+
+Para realizar a análise, filtrei da base de dados os candidatos que pertencem a um dos 4 partidos. O que resultou na quantidade abaixo de candidatos:
+
+```{r}
+table_cristao = respostas %>% mutate(`É associado a partido cristão` = sigla_partido %in% c("PRB", "PSC", "PHS", "PSDC"))
+
+nrow(table_cristao %>% filter(`É associado a partido cristão` == TRUE))
+```
+
+Agora, dentre estes candidatos, podemos calcular a proporção que apoia o estado laico. Contudo, é necessário também ter um parâmetro para reconhecer se esta proporção é alta ou baixa. Por isso, dividi o conjunto de dados em associados a partidos cristãos (TRUE) e não associados a partidos cristãos (FALSE) e calculei para ambos.
+
+```{r}
+table_cristao = respostas %>% mutate(`É associado a partido cristão` = sigla_partido %in% c("PRB", "PSC", "PHS", "PSDC"))
+
+summary_cristao = table_cristao %>% 
+                        group_by(`É associado a partido cristão`) %>% 
+                        summarize(`Apoio ao estado laico (Proporção)` = sum(`Estado Laico` == "S") / n())
+
+kable(summary_cristao) %>%
+kable_styling(c("striped", "hover"))
 
 ```
+
+Conclusão: A proporção de candidatos associados a partidos cristãos que apoiam o estado laico é baixa (48%) se comparado aos candidatos dos demais partidos (75,76%). O ato de se associar a um partido cristão já revela o posicionamento de crença do candidato, então, é esperado que esses candidatos de certa forma tentem impor suas crenças para o estado com muito mais fervor do que os outros candidatos.
+
+# Pergunta 1.1 - Qual a tedência por partido cristão com relação à política de estado laico?
+
+Em detrimento das diferentes características e intensidades no apoio de algumas políticas e agora que já sabemos que esses candidatos tendem a ser menos tolerantes na relação estado, sociedade e religião, me pergunto se realmente o que foi citado no começo da sessão anterior a respeito do PSC e PSDC é verdadeiro. Por isso iremos trabalhar em cima da pergunta "quanto cada partido individualmente tende a ser a favor do estado laico?".
+
+```{r}
+filtered_cristaos = table_cristao %>% filter(`É associado a partido cristão` == TRUE)
+
+p = ggplot(filtered_cristaos %>%
+                    group_by(sigla_partido) %>% 
+                    summarize(`Quantidade de Candidatos`=n(), `Quantidade que não apoia o estado laico` = sum(`Estado Laico` == "N")), aes(x=sigla_partido, y=`Quantidade que não apoia o estado laico`)) +
+  geom_bar(stat="identity") + labs(title = "Rejeição ao estado laico por partido", x = "Sigla do Partido")
+
+ggplotly(p)
+
+```
+
+Portanto, o partido que mais apresentou candidatos que não apoiam o estado laico foi o PSC. Veja como isso fica em proporção:
+
+```{r}
+
+
+kable(arrange(filtered_cristaos %>% filter(`É associado a partido cristão` == TRUE) %>%  group_by(sigla_partido) %>% summarize(`Quantidade de Candidatos` = n(), `Proporção que não apoia o estado laico` = sum(`Estado Laico` == "N") / n()), -`Proporção que não apoia o estado laico`)) %>%
+kable_styling(c("striped", "hover"))
+```
+
+Conclusão: Todos os representantes do PSC são contra o estado laico, o que é confirmado de acordo com a ideologia do partido. Leia este trecho retirado da página do Wikipedia do PSC: "A denominação social-cristão vem da crença dos partidários de que o Cristianismo, mais do que uma religião, é um estado de espírito que não segrega e não exclui, além de servir de base para que as pessoas tomem decisões de forma racional".
+Dos 4 é o partido com as ideias mais radicais. Enquanto o PHS é o partido com ideologias menos radicais, pois foi fundado por um padre para ser um partido voltado para solidariedade e não necessariamente para o cristianismo.
+
+
+
+# Pergunta 2 - Algum dos 26 estados do Brasil apresenta candidatos com disparidade na rejeição ao tema 'Igualdade de gênero e raça nas escolas'?
+
+Para responder a esta pergunta, plotei a distribuição de candidatos por estado que são contra ou a favor dessa questão. 
+```{r}
+p3 = ggplot(respostas %>% group_by(sigla_estado), aes(x=sigla_estado, y=respostas$`Igualdade de gênero e raça nas escolas`, Nome = nome_urna)) + geom_point(position = position_jitter(width=0.0, height=0.3), size = 0.9) + labs(title="Dispersão de respostas sobre a Igualdade de gênero e raça nas escolas por estado", x="Sigla do Estado", y="Resposta do tema")
+
+ggplotly(p3)
+```
+
+Podemos perceber que há uma grande concentração de candidatos a favor do tema. Os estados que mais apresentam candidatos contra são: MG, RJ e SP, mas estes são estados com muitos candidatos, proporcionalmente as coisas devem mudar. O gráfico de barras abaixo responde a essa pergunta:
+
+```{r}
+p2 = ggplot(respostas %>% group_by(sigla_estado) %>% summarize(proporcao_respeita = sum(`Igualdade de gênero e raça nas escolas` == "N") / n()), aes(x=sigla_estado, y=proporcao_respeita)) + geom_bar(stat="identity") + coord_flip() + labs(title="Proporção de reijeição ao tema  Igualdade de gênero e raça nas escolas por estado", x="Sigla do Estado", y="Proporção de candidatos que não apoiam o tema")
+
+
+ggplotly(p2)
+```
+
+Conclusão: Alagoas é o estado que menos apoia o tema. Mesmo assim, não é uma grande diferença para os outros estados.
+
+# Pergunta 2.1 - No estado de Alagoas os candidatos tendem a apoiar menos o tema 'Combate à violência contra a mulher'?
+
+Como Alagoas é o estado com maior proporção de candidatos que apoiam o tema da sessão anterior, é de se esperar que eles também apoiem menos causas relacionadas à mulher, como o combate à violência contra a mulher. Será isso verdade?
+
+```{r}
+
+summary_al = respostas %>% 
+                        group_by(sigla_estado) %>% 
+                        summarize(`Quantidade de Candidatos`= n(), `Reijeição ao combate à violência contra a mulher (Proporção)` = sum(`Combate à violência contra mulher` == "N") / n())
+
+kable(summary_al) %>%
+kable_styling(c("striped", "hover"))
+
+```
+Conclusão: Pela tabela podemos notar que todos os candidatos de Alagoas são a favor do tema. Portanto, não é verdade que os candidatos de Alagoas tendem a se posicionar contrário ao tema. Um detalhe a ser observado é que a amostragem é muito pequena para o estado em questão, isso com certeza é uma ameaça à validade.
